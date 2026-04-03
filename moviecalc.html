@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0d0d0d">
+<title>When Does It End?</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0d0d;
+    --surface: #161616;
+    --surface-2: #1b1b1b;
+    --border: #2a2a2a;
+    --gold: #c9a84c;
+    --gold-dim: #7a6330;
+    --text: #e8e0d0;
+    --text-dim: #7a7060;
+    --error: #c0544a;
+    --safe-bottom: max(24px, env(safe-area-inset-bottom));
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    min-height: 100vh;
+    min-height: 100svh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 36px 16px calc(52px + var(--safe-bottom));
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.4;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 640px;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 28px;
+  }
+
+  .eyebrow {
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(2.2rem, 8vw, 3.4rem);
+    font-weight: 400;
+    line-height: 1.04;
+    letter-spacing: -0.01em;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  h1:hover { opacity: 0.92; }
+
+  h1 em {
+    font-style: italic;
+    color: var(--gold);
+  }
+
+  .subtitle {
+    margin-top: 12px;
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 0.08em;
+  }
+
+  .tabs {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 24px;
+    background: rgba(22, 22, 22, 0.75);
+    backdrop-filter: blur(8px);
+    position: sticky;
+    top: 10px;
+    z-index: 5;
+  }
+
+  .tab {
+    min-height: 58px;
+    padding: 10px 8px;
+    background: none;
+    border: none;
+    border-right: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+    line-height: 1.25;
+  }
+
+  .tab:last-child { border-right: none; }
+  .tab:hover { color: var(--text); background: #1e1e1e; }
+
+  .tab.active {
+    background: var(--gold);
+    color: #0d0d0d;
+    font-weight: 700;
+  }
+
+  .tab-short { display: none; }
+
+  .form-shell {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: rgba(22, 22, 22, 0.88);
+    padding: 18px;
+  }
+
+  .form-group {
+    margin-bottom: 18px;
+  }
+
+  .form-group:last-of-type {
+    margin-bottom: 0;
+  }
+
+  label {
+    display: block;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+
+  input {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 16px;
+    padding: 15px 16px;
+    outline: none;
+    transition: border-color 0.2s, background 0.2s;
+    min-height: 52px;
+  }
+
+  input:focus {
+    border-color: var(--gold-dim);
+    background: var(--surface-2);
+  }
+
+  input::placeholder { color: var(--text-dim); opacity: 0.5; }
+
+  .autocomplete-wrap {
+    position: relative;
+  }
+
+  .autocomplete-box {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    z-index: 8;
+    display: none;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: rgba(22, 22, 22, 0.98);
+    overflow: hidden;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+  }
+
+  .autocomplete-box.visible { display: block; }
+
+  .autocomplete-btn {
+    width: 100%;
+    padding: 12px 14px;
+    background: none;
+    border: none;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    line-height: 1.4;
+    cursor: pointer;
+  }
+
+  .autocomplete-btn:last-child {
+    border-bottom: none;
+  }
+
+  .autocomplete-btn:hover,
+  .autocomplete-btn:focus {
+    background: var(--surface-2);
+    outline: none;
+  }
+
+  .autocomplete-title {
+    display: block;
+    color: var(--text);
+  }
+
+  .autocomplete-meta {
+    display: block;
+    margin-top: 2px;
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+
+  .field-hidden { display: none; }
+
+  .button-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin-top: 14px;
+  }
+
+  .btn {
+    width: 100%;
+    min-height: 52px;
+    padding: 14px 15px;
+    background: var(--gold);
+    color: #0d0d0d;
+    border: none;
+    border-radius: 8px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+  }
+
+  .btn:hover { opacity: 0.9; }
+  .btn:active { transform: scale(0.99); }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+  .btn-reset {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-weight: 400;
+  }
+
+  .btn-reset:hover {
+    color: var(--text);
+    border-color: var(--text-dim);
+    opacity: 1;
+  }
+
+  .result-area {
+    margin-top: 20px;
+    min-height: 0;
+    transition: all 0.3s;
+  }
+
+  .result-card {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    display: none;
+    animation: fadeUp 0.35s ease;
+    background: rgba(22, 22, 22, 0.95);
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .result-card.visible { display: flex; }
+
+  .result-poster {
+    width: 132px;
+    min-width: 132px;
+    background: #1a1a1a;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .result-poster img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .poster-placeholder {
+    font-size: 30px;
+    opacity: 0.2;
+  }
+
+  .result-body {
+    padding: 22px 20px;
+    flex: 1;
+  }
+
+  .result-label {
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+  }
+
+  .result-time {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(2.5rem, 9vw, 3rem);
+    font-weight: 700;
+    color: var(--gold);
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+
+  .result-title {
+    font-size: 12px;
+    color: var(--text);
+    line-height: 1.5;
+  }
+
+  .result-runtime,
+  .result-meta {
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-top: 6px;
+    line-height: 1.5;
+  }
+
+
+  .result-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 14px;
+  }
+
+  .result-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 38px;
+    padding: 8px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    text-decoration: none;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    transition: transform 0.12s, border-color 0.2s, background 0.2s, opacity 0.2s;
+  }
+
+  .result-link:hover {
+    transform: translateY(-1px);
+    border-color: var(--gold-dim);
+    background: var(--surface-2);
+    opacity: 1;
+  }
+
+  .result-link-badge {
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0;
+    flex: 0 0 auto;
+  }
+
+  .result-link.imdb .result-link-badge {
+    background: #f5c518;
+    color: #111;
+  }
+
+  .result-link.letterboxd .result-link-badge {
+    background: linear-gradient(135deg, #00c030 0 33%, #00a6ff 33% 66%, #ff8000 66% 100%);
+  }
+  .lb-badge::after {
+    content: "lb";
+    font-size: 7px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: 0;
+    mix-blend-mode: overlay;
+  }
+
+  .message-box {
+    padding: 18px 18px;
+    border-radius: 10px;
+    font-size: 12px;
+    line-height: 1.7;
+    display: none;
+    animation: fadeUp 0.3s ease;
+  }
+
+  .message-box.visible { display: block; }
+
+  .message-box.error {
+    border: 1px solid #5a2a28;
+    background: #1a0f0f;
+    color: #e08080;
+  }
+
+  .message-box.suggestions {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+  }
+
+  .message-box .sugg-title {
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+  }
+
+  .sugg-list {
+    display: grid;
+    gap: 8px;
+  }
+
+  .sugg-btn {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 11px 12px;
+    border: 1px solid var(--gold-dim);
+    border-radius: 8px;
+    background: none;
+    color: var(--gold);
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    line-height: 1.45;
+  }
+
+  .sugg-btn:hover {
+    background: var(--gold);
+    color: #0d0d0d;
+  }
+
+  .spinner {
+    display: none;
+    text-align: center;
+    padding: 30px 12px;
+    color: var(--text-dim);
+    font-size: 11px;
+    letter-spacing: 0.15em;
+  }
+
+  .spinner.visible { display: block; }
+
+  .spinner::before {
+    content: '';
+    display: block;
+    width: 22px;
+    height: 22px;
+    border: 2px solid var(--border);
+    border-top-color: var(--gold);
+    border-radius: 50%;
+    margin: 0 auto 14px;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 560px) {
+    body {
+      padding: 24px 12px calc(42px + var(--safe-bottom));
+    }
+
+    .tab-long { display: none; }
+    .tab-short { display: inline; }
+    .tab { font-size: 9px; min-height: 54px; }
+
+    .form-shell { padding: 14px; }
+
+    .result-card.visible {
+      display: flex;
+      align-items: stretch;
+    }
+
+    .result-poster {
+      width: 84px;
+      min-width: 84px;
+      height: auto;
+      max-height: 126px;
+      align-self: center;
+      margin-left: 12px;
+      border-radius: 8px;
+    }
+
+    .result-poster img {
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .result-body {
+      padding: 16px 14px 18px;
+      min-width: 0;
+    }
+
+    .subtitle {
+      padding: 0 10px;
+      line-height: 1.5;
+    }
+  }
+
+  @media (min-width: 641px) {
+    body {
+      padding-top: 56px;
+    }
+
+    .button-row {
+      grid-template-columns: 1fr auto;
+    }
+
+    .btn-reset {
+      min-width: 150px;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <p class="eyebrow">Time Calculator</p>
+    <h1 id="appTitle" title="Reset">When Does<br>It <em>End?</em></h1>
+    <p class="subtitle">Find out what time a movie finishes</p>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" data-mode="movie"><span class="tab-long">Movie now</span><span class="tab-short">Now</span></button>
+    <button class="tab" data-mode="custom_movie"><span class="tab-long">Custom start + movie</span><span class="tab-short">Movie + time</span></button>
+    <button class="tab" data-mode="custom"><span class="tab-long">Custom + duration</span><span class="tab-short">Custom</span></button>
+  </div>
+
+  <div class="form-shell">
+    <div class="form-group" id="field-movie">
+      <label for="movieInput">Movie title</label>
+      <div class="autocomplete-wrap">
+        <input type="text" id="movieInput" placeholder="e.g. Inception" autocomplete="off" />
+        <div class="autocomplete-box" id="autocompleteBox"></div>
+      </div>
+    </div>
+
+    <div class="form-group field-hidden" id="field-start">
+      <label for="startInput">Start time</label>
+      <input type="time" id="startInput" />
+    </div>
+
+    <div class="form-group field-hidden" id="field-duration">
+      <label for="durationInput">Duration (minutes)</label>
+      <input type="number" id="durationInput" placeholder="e.g. 90" min="1" />
+    </div>
+
+    <div class="button-row">
+      <button class="btn" id="calcBtn">Calculate</button>
+      <button class="btn btn-reset" id="resetBtn">Reset</button>
+    </div>
+  </div>
+
+  <div class="result-area" id="resultArea">
+    <div class="spinner" id="spinner">Looking that up...</div>
+
+    <div class="result-card" id="resultCard">
+      <div class="result-poster" id="posterArea">
+        <span class="poster-placeholder">🎬</span>
+      </div>
+      <div class="result-body">
+        <p class="result-label" id="resultLabel">You'll finish at</p>
+        <div class="result-time" id="resultTime">—</div>
+        <div class="result-title" id="resultTitle"></div>
+        <div class="result-runtime" id="resultRuntime"></div>
+        <div class="result-meta" id="resultMeta"></div>
+        <div class="result-links" id="resultLinks"></div>
+      </div>
+    </div>
+
+    <div class="message-box error" id="errorBox"></div>
+    <div class="message-box suggestions" id="suggBox"></div>
+  </div>
+</div>
+
+<script>
+  const TMDB_KEY = "38061bf30599de7f8828e180b78c231a";
+  const TMDB_IMG = "https://image.tmdb.org/t/p/w300";
+  let currentMode = "movie";
+
+  const tabs = document.querySelectorAll(".tab");
+  const fieldMovie = document.getElementById("field-movie");
+  const fieldStart = document.getElementById("field-start");
+  const fieldDuration = document.getElementById("field-duration");
+  const calcBtn = document.getElementById("calcBtn");
+  const resetBtn = document.getElementById("resetBtn");
+  const spinner = document.getElementById("spinner");
+  const movieInput = document.getElementById("movieInput");
+  const autocompleteBox = document.getElementById("autocompleteBox");
+  const resultCard = document.getElementById("resultCard");
+  const errorBox = document.getElementById("errorBox");
+  const suggBox = document.getElementById("suggBox");
+  const resultLabel = document.getElementById("resultLabel");
+  const resultTime = document.getElementById("resultTime");
+  const resultTitle = document.getElementById("resultTitle");
+  const resultRuntime = document.getElementById("resultRuntime");
+  const resultMeta = document.getElementById("resultMeta");
+  const posterArea = document.getElementById("posterArea");
+  const resultLinks = document.getElementById("resultLinks");
+  const appTitle = document.getElementById("appTitle");
+
+  function show(...els) { els.forEach(e => e.classList.add("visible")); }
+  function hide(...els) { els.forEach(e => e.classList.remove("visible")); }
+  function hideAll() { hide(spinner, resultCard, errorBox, suggBox); }
+  function hideAutocomplete() { hide(autocompleteBox); autocompleteBox.innerHTML = ""; }
+
+  tabs.forEach(tab => {
+    tab.addEventListener("click", () => {
+      tabs.forEach(t => t.classList.remove("active"));
+      tab.classList.add("active");
+      currentMode = tab.dataset.mode;
+      updateFields();
+      hideAll();
+      hideAutocomplete();
+    });
+  });
+
+  function updateFields() {
+    fieldMovie.classList.toggle("field-hidden", currentMode === "custom");
+    fieldStart.classList.toggle("field-hidden", currentMode === "movie");
+    fieldDuration.classList.toggle("field-hidden", currentMode !== "custom");
+  }
+
+  function addTime(baseTime, minutes) {
+    const [h, m] = baseTime.split(":").map(Number);
+    const total = h * 60 + m + minutes;
+    const rh = Math.floor(total / 60) % 24;
+    const rm = total % 60;
+    return `${String(rh).padStart(2, "0")}:${String(rm).padStart(2, "0")}`;
+  }
+
+  function getDayOffset(baseTime, minutes) {
+    const [h, m] = baseTime.split(":").map(Number);
+    const total = h * 60 + m + minutes;
+    return Math.floor(total / (24 * 60));
+  }
+
+  function formatDuration(minutes) {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    if (!hours) return `${mins}m`;
+    if (!mins) return `${hours}h`;
+    return `${hours}h ${mins}m`;
+  }
+
+  function nowHHMM() {
+    const now = new Date();
+    return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  }
+
+  // --- TMDB API ---
+
+  async function tmdbSearch(query, signal) {
+    const url = `https://api.themoviedb.org/3/search/movie?api_key=${TMDB_KEY}&query=${encodeURIComponent(query)}&page=1`;
+    const res = await fetch(url, signal ? { signal } : {});
+    const data = await res.json();
+    return data.results || [];
+  }
+
+  async function tmdbDetails(id) {
+    const url = `https://api.themoviedb.org/3/movie/${id}?api_key=${TMDB_KEY}`;
+    const res = await fetch(url);
+    return res.json();
+  }
+
+  function posterUrl(path) {
+    return path ? `${TMDB_IMG}${path}` : null;
+  }
+
+  // --- Autocomplete ---
+
+  let autocompleteTimer = null;
+  let autocompleteController = null;
+
+  movieInput.addEventListener("input", () => {
+    const query = movieInput.value.trim();
+    if (autocompleteTimer) clearTimeout(autocompleteTimer);
+    if (autocompleteController) autocompleteController.abort();
+
+    if (query.length < 2) { hideAutocomplete(); return; }
+
+    autocompleteTimer = setTimeout(async () => {
+      autocompleteController = new AbortController();
+      try {
+        const results = await tmdbSearch(query, autocompleteController.signal);
+        if (movieInput.value.trim() !== query) return;
+        showAutocompleteSuggestions(results.slice(0, 6));
+      } catch (err) {
+        if (err.name !== "AbortError") hideAutocomplete();
+      }
+    }, 200);
+  });
+
+  movieInput.addEventListener("focus", () => {
+    if (movieInput.value.trim().length >= 2 && autocompleteBox.innerHTML.trim()) {
+      show(autocompleteBox);
+    }
+  });
+
+  document.addEventListener("click", e => {
+    if (!e.target.closest(".autocomplete-wrap")) hideAutocomplete();
+  });
+
+  function showAutocompleteSuggestions(results) {
+    if (!results.length) { hideAutocomplete(); return; }
+    autocompleteBox.innerHTML = results.map(m => {
+      const year = m.release_date ? m.release_date.slice(0, 4) : "";
+      return `
+        <button class="autocomplete-btn" type="button" data-id="${m.id}" data-title="${m.title.replace(/"/g, "&quot;")}">
+          <span class="autocomplete-title">${m.title}</span>
+          <span class="autocomplete-meta">${year || "Movie"}</span>
+        </button>`;
+    }).join("");
+
+    autocompleteBox.querySelectorAll(".autocomplete-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        movieInput.value = btn.dataset.title;
+        hideAutocomplete();
+        // fetch by ID directly — we already know exactly which movie it is
+        const id = parseInt(btn.dataset.id);
+        await calculateWithId(id);
+      });
+    });
+
+    show(autocompleteBox);
+  }
+
+  // --- Fetch logic ---
+
+  // Called when user picks from autocomplete — we already have the TMDB ID
+  async function calculateWithId(tmdbId) {
+    const startTime = currentMode === "movie" ? nowHHMM() : document.getElementById("startInput").value;
+    if (currentMode === "custom_movie" && !startTime) { showError("Please enter a start time."); return; }
+
+    hideAll();
+    calcBtn.disabled = true;
+    show(spinner);
+
+    try {
+      const details = await tmdbDetails(tmdbId);
+      hide(spinner);
+
+      if (!details.runtime) {
+        showError(`Found "${details.title}" but runtime info isn't available.`);
+        return;
+      }
+
+      showResult(startTime, addTime(startTime, details.runtime), details.title,
+        posterUrl(details.poster_path), details.runtime, details.imdb_id, details.release_date?.slice(0,4));
+    } catch(e) {
+      hide(spinner);
+      showError("Something went wrong. Check your internet connection and try again.");
+    } finally {
+      calcBtn.disabled = false;
+    }
+  }
+
+  // Called when user types a title and hits Calculate — search then disambiguate
+  async function fetchMovie(title) {
+    const results = await tmdbSearch(title);
+    if (!results.length) return { validResults: [], noRuntimeSuggestions: [] };
+
+    const top = results.slice(0, 5);
+    const validResults = [];
+
+    for (const r of top) {
+      const details = await tmdbDetails(r.id);
+      if (details.runtime && details.runtime > 0) {
+        validResults.push(details);
+      }
+    }
+
+    if (validResults.length === 0) {
+      const cleanSuggestions = top.map(r => r.title).filter(t => !/\(\d{4}\)/.test(t));
+      return { validResults: [], noRuntimeSuggestions: cleanSuggestions };
+    }
+
+    return { validResults, noRuntimeSuggestions: [] };
+  }
+
+  // --- Calculate button ---
+
+  calcBtn.addEventListener("click", async () => {
+    hideAll();
+    hideAutocomplete();
+
+    if (currentMode === "custom") {
+      const start = document.getElementById("startInput").value;
+      const mins = parseInt(document.getElementById("durationInput").value);
+      if (!start) { showError("Please enter a start time."); return; }
+      if (isNaN(mins) || mins < 1) { showError("Please enter a valid duration in minutes."); return; }
+      showResult(start, addTime(start, mins), null, null, mins);
+      return;
+    }
+
+    const movieTitle = movieInput.value.trim();
+    if (!movieTitle) { showError("Please enter a movie title."); return; }
+
+    const startTime = currentMode === "movie"
+      ? nowHHMM()
+      : document.getElementById("startInput").value;
+
+    if (currentMode === "custom_movie" && !startTime) {
+      showError("Please enter a start time.");
+      return;
+    }
+
+    calcBtn.disabled = true;
+    show(spinner);
+
+    try {
+      const { validResults, noRuntimeSuggestions } = await fetchMovie(movieTitle);
+      hide(spinner);
+
+      if (validResults.length === 0) {
+        if (noRuntimeSuggestions.length) {
+          showError(`Couldn't find an exact match — did you mean one of these?`);
+          showTitleSuggestions(noRuntimeSuggestions);
+        } else {
+          showError(`No results found for "${movieTitle}". The spelling might be off — try checking the exact title on IMDb.`);
+        }
+        return;
+      }
+
+      const movie = validResults[0];
+      showResult(startTime, addTime(startTime, movie.runtime), movie.title,
+        posterUrl(movie.poster_path), movie.runtime, movie.imdb_id, movie.release_date?.slice(0,4));
+      showAlternateSuggestions(validResults, startTime, 0);
+
+    } catch (e) {
+      hide(spinner);
+      showError("Something went wrong. Check your internet connection and try again.");
+    } finally {
+      calcBtn.disabled = false;
+    }
+  });
+
+  // --- Display ---
+
+  function showPoster(url) {
+    posterArea.innerHTML = url
+      ? `<img src="${url}" alt="Movie poster" />`
+      : `<span class="poster-placeholder">🎬</span>`;
+  }
+
+  function showResult(startTime, endTime, title, poster, runtime, imdbID = "", year = "") {
+    const dayOffset = runtime ? getDayOffset(startTime, runtime) : 0;
+    const dayText = dayOffset === 0 ? "today" : dayOffset === 1 ? "tomorrow" : `in ${dayOffset} days`;
+    resultLabel.textContent = dayOffset === 0 ? "You'll finish at" : `You'll finish ${dayText} at`;
+    resultTime.textContent = endTime;
+    resultTitle.textContent = title ? `"${title}"` : "";
+    resultRuntime.textContent = "";
+    resultMeta.textContent = runtime
+      ? `${currentMode === "movie" ? "Starting now" : `Starts at ${startTime}`} • ${formatDuration(runtime)}`
+      : "";
+    showPoster(poster);
+    renderResultLinks(title, imdbID, year);
+    show(resultCard);
+  }
+
+  function showError(msg) {
+    errorBox.textContent = msg;
+    show(errorBox);
+  }
+
+  function showAlternateSuggestions(movies, startTime, selectedIndex = 0) {
+    if (movies.length <= 1) { hide(suggBox); return; }
+    const others = movies.map((m, i) => ({ m, i })).filter(({ i }) => i !== selectedIndex);
+    if (!others.length) { hide(suggBox); return; }
+
+    suggBox.innerHTML = `
+      <div class="sugg-title">Other results</div>
+      <div class="sugg-list">
+        ${others.map(({ m, i }) => {
+          const year = m.release_date ? m.release_date.slice(0,4) : "";
+          return `<button class="sugg-btn" data-index="${i}">${m.title}${year ? " (" + year + ")" : ""} • ${formatDuration(m.runtime)}</button>`;
+        }).join("")}
+      </div>`;
+
+    suggBox.querySelectorAll(".sugg-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const movie = movies[parseInt(btn.dataset.index)];
+        showResult(startTime, addTime(startTime, movie.runtime), movie.title,
+          posterUrl(movie.poster_path), movie.runtime, movie.imdb_id, movie.release_date?.slice(0,4));
+        showAlternateSuggestions(movies, startTime, parseInt(btn.dataset.index));
+      });
+    });
+    show(suggBox);
+  }
+
+  function showTitleSuggestions(titles) {
+    if (!titles.length) return;
+    suggBox.innerHTML = `
+      <div class="sugg-title">Did you mean?</div>
+      <div class="sugg-list">
+        ${titles.map(t => `<button class="sugg-btn">${t}</button>`).join("")}
+      </div>`;
+    suggBox.querySelectorAll(".sugg-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        movieInput.value = btn.textContent;
+        hide(suggBox);
+        calcBtn.click();
+      });
+    });
+    show(suggBox);
+  }
+
+  function renderResultLinks(title, imdbID, year) {
+    if (!title) { resultLinks.innerHTML = ""; return; }
+    const imdbUrl = imdbID ? `https://www.imdb.com/title/${imdbID}/` : "";
+    const letterboxdUrl = `https://letterboxd.com/search/${encodeURIComponent(year ? `${title} ${year}` : title)}/`;
+    resultLinks.innerHTML = `
+      ${imdbUrl ? `<a class="result-link imdb" href="${imdbUrl}" target="_blank" rel="noopener noreferrer"><span class="result-link-badge">i</span><span>IMDb</span></a>` : ""}
+      <a class="result-link letterboxd" href="${letterboxdUrl}" target="_blank" rel="noopener noreferrer"><span class="result-link-badge lb-badge"></span><span>Letterboxd</span></a>`;
+  }
+
+  function resetApp() {
+    movieInput.value = "";
+    document.getElementById("startInput").value = "";
+    document.getElementById("durationInput").value = "";
+    resultLinks.innerHTML = "";
+    hideAll();
+    hideAutocomplete();
+  }
+
+  resetBtn.addEventListener("click", resetApp);
+  appTitle.addEventListener("click", resetApp);
+
+  document.addEventListener("keydown", e => {
+    if (e.key === "Enter" && !e.target.closest(".autocomplete-box")) calcBtn.click();
+  });
+</script>
+</body>
+</html>

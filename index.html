@@ -809,6 +809,13 @@
     show(tvAutocompleteBox);
   }
 
+  async function tmdbTVEpisodeRuntime(showId, seasonNum, episodeNum) {
+    const url = `https://api.themoviedb.org/3/tv/${showId}/season/${seasonNum}/episode/${episodeNum}?api_key=${TMDB_KEY}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    return data.runtime || null;
+  }
+
   async function calculateTV(tmdbId) {
     const startTime = nowHHMM();
     hideAll();
@@ -819,15 +826,33 @@
       const details = await tmdbTVDetails(tmdbId);
       hide(spinner);
 
-      // TMDB provides episode_run_time as an array (can vary), take the average
+      // Try episode_run_time array first (simplest case)
+      let avgRuntime = null;
       const runtimes = (details.episode_run_time || []).filter(r => r > 0);
-      if (!runtimes.length) {
+      if (runtimes.length) {
+        avgRuntime = Math.round(runtimes.reduce((a, b) => a + b, 0) / runtimes.length);
+      }
+
+      // Fallback: fetch the last episode of the last season directly —
+      // TMDB stores runtime there even when episode_run_time is empty
+      if (!avgRuntime && details.last_episode_to_air) {
+        const ep = details.last_episode_to_air;
+        const epRuntime = await tmdbTVEpisodeRuntime(tmdbId, ep.season_number, ep.episode_number);
+        if (epRuntime) avgRuntime = epRuntime;
+      }
+
+      // Second fallback: try the first episode of season 1
+      if (!avgRuntime && details.number_of_seasons) {
+        const epRuntime = await tmdbTVEpisodeRuntime(tmdbId, 1, 1);
+        if (epRuntime) avgRuntime = epRuntime;
+      }
+
+      if (!avgRuntime) {
         showError(`Couldn't find episode runtime data for "${details.name}".`);
         return;
       }
-      const avgRuntime = Math.round(runtimes.reduce((a, b) => a + b, 0) / runtimes.length);
-      const endTime = addTime(startTime, avgRuntime);
 
+      const endTime = addTime(startTime, avgRuntime);
       showTVResult(startTime, endTime, details, avgRuntime);
     } catch(e) {
       hide(spinner);

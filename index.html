@@ -831,11 +831,15 @@
   // TV autocomplete
   let tvAutocompleteTimer = null;
   let tvAutocompleteController = null;
+  let selectedTVId = null;
+  let selectedTVTitle = null;
   const tvInput = document.getElementById("tvInput");
   const tvAutocompleteBox = document.getElementById("tvAutocompleteBox");
 
   tvInput.addEventListener("input", () => {
     const query = tvInput.value.trim();
+    // User is typing again — clear any previously selected show
+    if (tvInput.value.trim() !== selectedTVTitle) { selectedTVId = null; selectedTVTitle = null; }
     if (tvAutocompleteTimer) clearTimeout(tvAutocompleteTimer);
     if (tvAutocompleteController) tvAutocompleteController.abort();
     if (query.length < 2) { hideTVAutocomplete(); return; }
@@ -872,8 +876,10 @@
     tvAutocompleteBox.querySelectorAll(".autocomplete-btn").forEach(btn => {
       btn.addEventListener("click", async () => {
         tvInput.value = btn.dataset.title;
+        selectedTVId = parseInt(btn.dataset.id);
+        selectedTVTitle = btn.dataset.title;
         hideTVAutocomplete();
-        await calculateTV(parseInt(btn.dataset.id));
+        await calculateTV(selectedTVId);
       });
     });
     show(tvAutocompleteBox);
@@ -1005,7 +1011,7 @@
     // For binge use "around" since it compounds the estimate
     const qualifier = isBinge ? "around" : "probably";
     const dayText = dayOffset === 0 ? "" : dayOffset === 1 ? " tomorrow" : ` in ${dayOffset} days`;
-    resultLabel.textContent = `You'll ${qualifier} finish${dayText} at`;
+    resultLabel.textContent = isBinge ? `You'll finish${dayText} at around` : `You'll ${qualifier} finish${dayText} at`;
 
     resultTime.textContent = endTime;
     resultTitle.textContent = `"${details.name}"`;
@@ -1123,7 +1129,12 @@
     if (currentMode === "tv") {
       const showTitle = tvInput.value.trim();
       if (!showTitle) { showError("Please enter a show title."); return; }
-      // Search for the show and take the top result
+      // If the user picked from autocomplete and hasn't changed the title, use that ID directly
+      if (selectedTVId && selectedTVTitle === showTitle) {
+        await calculateTV(selectedTVId);
+        return;
+      }
+      // Otherwise do a fresh search and take the top result
       calcBtn.disabled = true;
       show(spinner);
       try {
@@ -1273,6 +1284,8 @@
   function resetApp() {
     movieInput.value = "";
     tvInput.value = "";
+    selectedTVId = null;
+    selectedTVTitle = null;
     document.getElementById("startInput").value = "";
     document.getElementById("durationInput").value = "";
     document.getElementById("bingeSeasonInput").value = "";

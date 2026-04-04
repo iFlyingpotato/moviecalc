@@ -552,6 +552,58 @@
       min-width: 150px;
     }
   }
+
+  .binge-toggle {
+    display: flex;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 0;
+  }
+
+  .binge-btn {
+    flex: 1;
+    padding: 11px 8px;
+    background: none;
+    border: none;
+    border-right: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .binge-btn:last-child { border-right: none; }
+  .binge-btn:hover { color: var(--text); background: #1e1e1e; }
+  .binge-btn.active { background: var(--gold); color: #0d0d0d; font-weight: 700; }
+
+  .binge-options {
+    margin-top: 12px;
+  }
+
+  .binge-select {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 14px;
+    padding: 13px 16px;
+    outline: none;
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%237a7060' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    transition: border-color 0.2s;
+  }
+
+  .binge-select:focus { border-color: var(--gold-dim); }
+  .binge-select option { background: #1a1a1a; }
 </style>
 </head>
 <body>
@@ -583,6 +635,23 @@
       <div class="autocomplete-wrap">
         <input type="text" id="tvInput" placeholder="e.g. The Bear" autocomplete="off" />
         <div class="autocomplete-box" id="tvAutocompleteBox"></div>
+      </div>
+    </div>
+
+    <div class="form-group field-hidden" id="field-binge">
+      <label>Mode</label>
+      <div class="binge-toggle">
+        <button class="binge-btn active" data-binge="false">One episode</button>
+        <button class="binge-btn" data-binge="true">Binge</button>
+      </div>
+      <div class="binge-options field-hidden" id="bingeOptions">
+        <select id="bingeSelect" class="binge-select">
+          <option value="series">Full series</option>
+          <option value="season">Specific season</option>
+          <option value="custom">Custom episode count</option>
+        </select>
+        <input type="number" id="bingeSeasonInput" class="field-hidden" placeholder="Season number" min="1" style="margin-top:10px;" />
+        <input type="number" id="bingeEpisodeInput" class="field-hidden" placeholder="Number of episodes" min="1" style="margin-top:10px;" />
       </div>
     </div>
 
@@ -671,6 +740,7 @@
     const isCustom = currentMode === "custom";
     fieldMovie.classList.toggle("field-hidden", isCustom || isTV);
     document.getElementById("field-tv").classList.toggle("field-hidden", !isTV);
+    document.getElementById("field-binge").classList.toggle("field-hidden", !isTV);
     fieldStart.classList.toggle("field-hidden", currentMode === "movie" || isTV);
     fieldDuration.classList.toggle("field-hidden", !isCustom);
   }
@@ -809,11 +879,53 @@
     show(tvAutocompleteBox);
   }
 
+  // Binge toggle logic
+  let isBingeMode = false;
+
+  document.querySelectorAll(".binge-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".binge-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      isBingeMode = btn.dataset.binge === "true";
+      document.getElementById("bingeOptions").classList.toggle("field-hidden", !isBingeMode);
+    });
+  });
+
+  document.getElementById("bingeSelect").addEventListener("change", () => {
+    const val = document.getElementById("bingeSelect").value;
+    document.getElementById("bingeSeasonInput").classList.toggle("field-hidden", val !== "season");
+    document.getElementById("bingeEpisodeInput").classList.toggle("field-hidden", val !== "custom");
+  });
+
+  async function tmdbSeasonDetails(showId, seasonNum) {
+    const url = `https://api.themoviedb.org/3/tv/${showId}/season/${seasonNum}?api_key=${TMDB_KEY}`;
+    const res = await fetch(url);
+    return res.json();
+  }
+
   async function tmdbTVEpisodeRuntime(showId, seasonNum, episodeNum) {
     const url = `https://api.themoviedb.org/3/tv/${showId}/season/${seasonNum}/episode/${episodeNum}?api_key=${TMDB_KEY}`;
     const res = await fetch(url);
     const data = await res.json();
     return data.runtime || null;
+  }
+
+  async function getAvgRuntime(details, tmdbId) {
+    let avgRuntime = null;
+    const runtimes = (details.episode_run_time || []).filter(r => r > 0);
+    if (runtimes.length) {
+      avgRuntime = Math.round(runtimes.reduce((a, b) => a + b, 0) / runtimes.length);
+    }
+    if (!avgRuntime && details.last_episode_to_air) {
+      const ep = details.last_episode_to_air;
+      const epRuntime = await tmdbTVEpisodeRuntime(tmdbId, ep.season_number, ep.episode_number);
+      if (epRuntime) avgRuntime = epRuntime;
+    }
+    if (!avgRuntime && details.number_of_seasons) {
+      const epRuntime = await tmdbTVEpisodeRuntime(tmdbId, 1, 1);
+      if (epRuntime) avgRuntime = epRuntime;
+    }
+    return avgRuntime;
   }
 
   async function calculateTV(tmdbId) {
@@ -824,36 +936,58 @@
 
     try {
       const details = await tmdbTVDetails(tmdbId);
-      hide(spinner);
 
-      // Try episode_run_time array first (simplest case)
-      let avgRuntime = null;
-      const runtimes = (details.episode_run_time || []).filter(r => r > 0);
-      if (runtimes.length) {
-        avgRuntime = Math.round(runtimes.reduce((a, b) => a + b, 0) / runtimes.length);
-      }
-
-      // Fallback: fetch the last episode of the last season directly —
-      // TMDB stores runtime there even when episode_run_time is empty
-      if (!avgRuntime && details.last_episode_to_air) {
-        const ep = details.last_episode_to_air;
-        const epRuntime = await tmdbTVEpisodeRuntime(tmdbId, ep.season_number, ep.episode_number);
-        if (epRuntime) avgRuntime = epRuntime;
-      }
-
-      // Second fallback: try the first episode of season 1
-      if (!avgRuntime && details.number_of_seasons) {
-        const epRuntime = await tmdbTVEpisodeRuntime(tmdbId, 1, 1);
-        if (epRuntime) avgRuntime = epRuntime;
-      }
-
+      const avgRuntime = await getAvgRuntime(details, tmdbId);
       if (!avgRuntime) {
+        hide(spinner);
         showError(`Couldn't find episode runtime data for "${details.name}".`);
         return;
       }
 
-      const endTime = addTime(startTime, avgRuntime);
-      showTVResult(startTime, endTime, details, avgRuntime);
+      if (!isBingeMode) {
+        hide(spinner);
+        showTVResult(startTime, addTime(startTime, avgRuntime), details, avgRuntime, 1);
+        return;
+      }
+
+      // Binge mode
+      const bingeType = document.getElementById("bingeSelect").value;
+      let episodeCount = 0;
+      let bingeLabel = "";
+
+      if (bingeType === "series") {
+        episodeCount = details.number_of_episodes || 0;
+        bingeLabel = `full series (${episodeCount} eps)`;
+      } else if (bingeType === "season") {
+        const seasonNum = parseInt(document.getElementById("bingeSeasonInput").value);
+        if (!seasonNum || seasonNum < 1 || seasonNum > details.number_of_seasons) {
+          hide(spinner);
+          showError(`Please enter a valid season number (1–${details.number_of_seasons}).`);
+          return;
+        }
+        const seasonData = await tmdbSeasonDetails(tmdbId, seasonNum);
+        episodeCount = seasonData.episodes?.length || 0;
+        bingeLabel = `season ${seasonNum} (${episodeCount} eps)`;
+      } else if (bingeType === "custom") {
+        episodeCount = parseInt(document.getElementById("bingeEpisodeInput").value);
+        if (!episodeCount || episodeCount < 1) {
+          hide(spinner);
+          showError("Please enter a valid number of episodes.");
+          return;
+        }
+        bingeLabel = `${episodeCount} episode${episodeCount > 1 ? "s" : ""}`;
+      }
+
+      if (!episodeCount) {
+        hide(spinner);
+        showError(`Couldn't get episode count for "${details.name}".`);
+        return;
+      }
+
+      hide(spinner);
+      const totalRuntime = avgRuntime * episodeCount;
+      showTVResult(startTime, addTime(startTime, totalRuntime), details, avgRuntime, episodeCount, bingeLabel, totalRuntime);
+
     } catch(e) {
       hide(spinner);
       showError("Something went wrong. Check your internet connection and try again.");
@@ -862,16 +996,28 @@
     }
   }
 
-  function showTVResult(startTime, endTime, details, avgRuntime) {
-    const dayOffset = getDayOffset(startTime, avgRuntime);
-    const dayText = dayOffset === 0 ? "today" : "tomorrow";
-    resultLabel.textContent = dayOffset === 0 ? "You'll probably finish at" : `You'll probably finish ${dayText} at`;
+  function showTVResult(startTime, endTime, details, avgRuntime, episodeCount = 1, bingeLabel = "", totalRuntime = 0) {
+    const runtime = totalRuntime || avgRuntime;
+    const dayOffset = getDayOffset(startTime, runtime);
+    const isBinge = episodeCount > 1;
+
+    // For single episode use "probably" since it's an average
+    // For binge use "around" since it compounds the estimate
+    const qualifier = isBinge ? "around" : "probably";
+    const dayText = dayOffset === 0 ? "" : dayOffset === 1 ? " tomorrow" : ` in ${dayOffset} days`;
+    resultLabel.textContent = `You'll ${qualifier} finish${dayText} at`;
+
     resultTime.textContent = endTime;
     resultTitle.textContent = `"${details.name}"`;
     resultRuntime.textContent = "";
-    resultMeta.textContent = `Starting now • ~${formatDuration(avgRuntime)} avg. episode`;
+
+    if (isBinge) {
+      resultMeta.textContent = `${bingeLabel} • ~${formatDuration(avgRuntime)}/ep • ~${formatDuration(runtime)} total`;
+    } else {
+      resultMeta.textContent = `Starting now • ~${formatDuration(avgRuntime)} avg. episode`;
+    }
+
     showPoster(posterUrl(details.poster_path));
-    // Letterboxd doesn't cover TV well, just link to TMDB page
     resultLinks.innerHTML = `<a class="result-link" href="https://www.themoviedb.org/tv/${details.id}" target="_blank" rel="noopener noreferrer"><span class="result-link-badge" style="background:#01b4e4;color:#fff;font-size:7px;font-weight:700;">tmdb</span><span>TMDB</span></a>`;
     show(resultCard);
     hide(suggBox);
@@ -1129,6 +1275,14 @@
     tvInput.value = "";
     document.getElementById("startInput").value = "";
     document.getElementById("durationInput").value = "";
+    document.getElementById("bingeSeasonInput").value = "";
+    document.getElementById("bingeEpisodeInput").value = "";
+    document.getElementById("bingeSelect").value = "series";
+    document.getElementById("bingeSeasonInput").classList.add("field-hidden");
+    document.getElementById("bingeEpisodeInput").classList.add("field-hidden");
+    document.getElementById("bingeOptions").classList.add("field-hidden");
+    document.querySelectorAll(".binge-btn").forEach((b, i) => b.classList.toggle("active", i === 0));
+    isBingeMode = false;
     resultLinks.innerHTML = "";
     hideAll();
     hideAutocomplete();
